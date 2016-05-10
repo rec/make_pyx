@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import datetime, re, sys
+import datetime, os, re, sys
 
 def clean_struct(s):
     typename, *parts = s.split()
@@ -109,5 +109,6 @@ if __name__ == '__main__':
     for f in sys.argv[1:]:
         assert f.endswith('.h'), 'Not a header file: ' + f
         data = make(f)
-        outfile = f[:-2] + '.pyx'
+        base, fname = os.path.split(os.path.splitext(f)[0])
+        outfile = os.path.join(base, '_' + fname + '.pyx')
         open(outfile, 'w').write(data)
