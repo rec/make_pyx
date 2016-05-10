@@ -65,24 +65,33 @@ def read(header_file):
 
 
 def make_enums(enum_classes, header_file, namespace, classname):
-    enums, declarations = {}, []
+    enums, declarations = [], []
     for ec in enum_classes:
         enum_name, parts = (i.strip() for i in ec)
         parts = [(p[:-1] if p.endswith(',') else p) for p in parts.split()]
-        enums[enum_name] = parts
+        enums.append((enum_name, parts))
         main = ENUM_CLASS_TEMPLATE.format(**locals())
         defs = ('    cdef %s %s' % (enum_name, p) for p in parts)
         declarations.append(main + '\n'.join(defs))
-    return enums, '\n'.join(declarations) + '\n'
+
+    return enums, '\n'.join(declarations) + '\n', ''
 
 
 def make(header_file):
     namespaces, structs, classname, enum_classes = read(header_file)
     namespace = ':'.join(namespaces)
 
-    enums, enum_class = make_enums(
+    enums, enum_class, enum_names = make_enums(
         enum_classes, header_file, namespace, classname)
+    enum_names = []
+    for name, values in enums:
+        values = ', '.join("'%s'" % v for v in values)
+        enum_names.append('    %s_NAMES = %s' % (name.upper(), values))
 
+    enum_variables = []
+    enum_names = prejoin('\n', enum_names)
+    if enum_names:
+        enum_names += '\n'
     pyx_structs = prejoin('\n        ',
                           ((t + ' ' + ', '.join(v)) for t, v in structs))
     struct_definition = '    struct %s:%s' % (classname, pyx_structs)
@@ -94,7 +103,10 @@ def make(header_file):
     property_list = []
     for typename, variables in structs:
         for prop in variables:
-            property_list.append(PROP_TEMPLATE.format(**locals()))
+            if prop in enum_variables:
+                pass
+            else:
+                property_list.append(PROP_TEMPLATE.format(**locals()))
     property_list = '\n'.join(property_list)
     timestamp = datetime.datetime.utcnow().isoformat()
     return MAIN_TEMPLATE.format(**locals())
@@ -113,7 +125,7 @@ cdef extern from "<{header_file}>" namespace "{namespace}":
 
 cdef class _{classname}(_Wrapper):
     cdef {classname} thisptr;
-
+{enum_names}
     def __cinit__(self):
         clear(self.thisptr)
 
@@ -140,6 +152,16 @@ cdef extern from "<{header_file}>" namespace "{namespace}::{classname}":
         pass
 
 cdef extern from "<{header_file}>" namespace "{namespace}::{classname}::{enum_name}":
+"""
+
+ENUM_PROP_TEMPLATE = """\
+    property {prop}:
+        def __get__(self):
+            return self.{TYPE}_NAMES[<int> self.thisptr.{prop}]
+        def __set__(self, string x):
+            cdef uint8_t i
+            i = self.{TYPE}_NAMES.index(x)
+            self.thisptr.{prop} = <{Type}>(i)
 """
 
 if __name__ == '__main__':
