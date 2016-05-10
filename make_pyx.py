@@ -74,21 +74,25 @@ def make_enums(enum_classes, header_file, namespace, classname):
         defs = ('    cdef %s %s' % (enum_name, p) for p in parts)
         declarations.append(main + '\n'.join(defs))
 
-    return enums, '\n'.join(declarations) + '\n', ''
+    decl = prejoin('\n', declarations)
+    if decl:
+        decl += '\n'
+    return enums,  decl
 
 
 def make(header_file):
     namespaces, structs, classname, enum_classes = read(header_file)
     namespace = ':'.join(namespaces)
 
-    enums, enum_class, enum_names = make_enums(
+    enums, enum_class = make_enums(
         enum_classes, header_file, namespace, classname)
     enum_names = []
+    enum_types = {}
     for name, values in enums:
+        enum_types[name] = set()
         values = ', '.join("'%s'" % v for v in values)
         enum_names.append('    %s_NAMES = %s' % (name.upper(), values))
 
-    enum_variables = []
     enum_names = prejoin('\n', enum_names)
     if enum_names:
         enum_names += '\n'
@@ -96,17 +100,26 @@ def make(header_file):
                           ((t + ' ' + ', '.join(v)) for t, v in structs))
     struct_definition = '    struct %s:%s' % (classname, pyx_structs)
     props = []
+
+    variables_to_enum_type = {}
+
     for t, v in structs:
+        if t in enum_types:
+            for i in v:
+                variables_to_enum_type[i] = t
         props += v
     str_format = ', '.join(n + '=%s' for n in props)
     variable_names = ', '.join('self.' + n for n in props)
     property_list = []
     for typename, variables in structs:
         for prop in variables:
-            if prop in enum_variables:
-                pass
+            if prop in variables_to_enum_type:
+                Type = variables_to_enum_type[prop]
+                TYPE = Type.upper()
+                template = ENUM_PROP_TEMPLATE
             else:
-                property_list.append(PROP_TEMPLATE.format(**locals()))
+                template = PROP_TEMPLATE
+            property_list.append(template.format(**locals()))
     property_list = '\n'.join(property_list)
     timestamp = datetime.datetime.utcnow().isoformat()
     return MAIN_TEMPLATE.format(**locals())
@@ -115,22 +128,19 @@ def make(header_file):
 MAIN_TEMPLATE = """\
 # Automatically generated on {timestamp}
 # by https://github.com/rec/make_pyx/make_pyx.py
-
 {enum_class}
 cdef extern from "<{header_file}>" namespace "{namespace}":
 {struct_definition}
-
-    void clear({classname}&)
 
 
 cdef class _{classname}(_Wrapper):
     cdef {classname} thisptr;
 {enum_names}
     def __cinit__(self):
-        clear(self.thisptr)
+        clearStruct(self.thisptr)
 
     def clear(self):
-        clear(self.thisptr)
+        clearStruct(self.thisptr)
 
     def __str__(self):
         return '({str_format})' % (
