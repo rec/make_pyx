@@ -45,7 +45,13 @@ def read(header_file):
                 enum_class.append(m.group(1, 2))
                 continue
 
-            if '{' in line or line.startswith('};') or line.startswith('class'):
+            if (
+                '{' in line or
+                '(' in line or
+                line.startswith('};') or
+                line.startswith('class') or
+                line.startswith('template')
+                ):
                 break
 
             structs.append(clean_struct(line))
@@ -108,7 +114,9 @@ def make(header_file):
             for i in v:
                 variables_to_enum_type[i] = t
         props += v
-    str_format = ', '.join(n + '=%s' for n in props)
+    str_format = [n + ("='%s'" if n in variables_to_enum_type else '=%s')
+                  for n in props]
+    str_format = ', '.join(str_format)
     variable_names = ', '.join('self.' + n for n in props)
     property_list = []
     for typename, variables in structs:
@@ -143,7 +151,7 @@ cdef class _{classname}(_Wrapper):
         clearStruct(self.thisptr)
 
     def __str__(self):
-        return '({str_format})' % (
+        return "({str_format})" % (
             {variable_names})
 
 {property_list}"""
