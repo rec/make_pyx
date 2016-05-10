@@ -2,6 +2,10 @@
 
 import datetime, os, re, sys
 
+
+def prejoin(prefix, s):
+    return prefix + prefix.join(s) if s else ''
+
 def clean_struct(s):
     typename, *parts = s.split()
 
@@ -16,12 +20,16 @@ def clean_struct(s):
     assert typename and parts and variables
     return typename, variables
 
+NAMESPACE_RE = re.compile(r'namespace (\w+)')
+STRUCT_RE = re.compile(r'struct (\w+)')
+ENUM_CLASS_RE = re.compile(r'enum class (\w+) \{([^}]+)}')
 
 def read(header_file):
     in_struct = False
     namespace = []
     structs = []
     classname = ''
+    enum_class = []
 
     for line in open(header_file):
         comment = line.find('//')
@@ -32,32 +40,52 @@ def read(header_file):
             continue
 
         if in_struct:
+            m = ENUM_CLASS_RE.match(line)
+            if m:
+                enum_class.append(m.group(1, 2))
+                continue
+
             if '{' in line or line.startswith('};') or line.startswith('class'):
                 break
+
             structs.append(clean_struct(line))
             continue
-        m = re.compile(r'namespace \s+(\S+)', re.X).match(line)
+
+        m = NAMESPACE_RE.match(line)
         if m:
             namespace.append(m.group(1))
             continue
 
-        m = re.compile(r'struct \s+(\S+)', re.X).match(line)
+        m = STRUCT_RE.match(line)
         if m:
-            Classname = m.group(1)
+            classname = m.group(1)
             in_struct = True
 
-    return namespace, structs, Classname
+    return namespace, structs, classname, enum_class
+
+
+def make_enums(enum_classes, header_file, namespace, classname):
+    enums, declarations = {}, []
+    for ec in enum_classes:
+        enum_name, parts = (i.strip() for i in ec)
+        parts = [(p[:-1] if p.endswith(',') else p) for p in parts.split()]
+        enums[enum_name] = parts
+        main = ENUM_CLASS_TEMPLATE.format(**locals())
+        defs = ('    cdef %s %s' % (enum_name, p) for p in parts)
+        declarations.append(main + '\n'.join(defs))
+    return enums, '\n'.join(declarations) + '\n'
 
 
 def make(header_file):
-    namespaces, structs, Classname = read(header_file)
+    namespaces, structs, classname, enum_classes = read(header_file)
     namespace = ':'.join(namespaces)
-    classname = Classname.lower()
 
-    indent = '\n        '
-    pyx_structs = indent + indent.join(
-        (t + ' ' + ', '.join(v)) for t, v in structs)
-    struct_definition = '    struct %s:%s' % (Classname, pyx_structs)
+    enums, enum_class = make_enums(
+        enum_classes, header_file, namespace, classname)
+
+    pyx_structs = prejoin('\n        ',
+                          ((t + ' ' + ', '.join(v)) for t, v in structs))
+    struct_definition = '    struct %s:%s' % (classname, pyx_structs)
     props = []
     for t, v in structs:
         props += v
@@ -76,20 +104,21 @@ MAIN_TEMPLATE = """\
 # Automatically generated on {timestamp}
 # by https://github.com/rec/make_pyx/make_pyx.py
 
+{enum_class}
 cdef extern from "<{header_file}>" namespace "{namespace}":
 {struct_definition}
 
-    void clear({Classname}&)
+    void clear({classname}&)
 
 
-cdef class _{Classname}(_Wrapper):
-    cdef {Classname} _{classname};
+cdef class _{classname}(_Wrapper):
+    cdef {classname} thisptr;
 
     def __cinit__(self):
-        clear(self._{classname})
+        clear(self.thisptr)
 
     def clear(self):
-        clear(self._{classname})
+        clear(self.thisptr)
 
     def __str__(self):
         return '({str_format})' % (
@@ -100,9 +129,17 @@ cdef class _{Classname}(_Wrapper):
 PROP_TEMPLATE = """\
     property {prop}:
         def __get__(self):
-            return self._{classname}.{prop}
+            return self.thisptr.{prop}
         def __set__(self, {typename} x):
-            self._{classname}.{prop} = x
+            self.thisptr.{prop} = x
+"""
+
+ENUM_CLASS_TEMPLATE = """\
+cdef extern from "<{header_file}>" namespace "{namespace}::{classname}":
+    cdef cppclass {enum_name}:
+        pass
+
+cdef extern from "<{header_file}>" namespace "{namespace}::{classname}::{enum_name}":
 """
 
 if __name__ == '__main__':
