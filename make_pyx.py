@@ -92,6 +92,8 @@ def make(header_file):
 
     enums, enum_class = make_enums(
         enum_classes, header_file, namespace, classname)
+    member_name = '_instance' # '_' + classname.lower()
+
     enum_names = []
     enum_types = {}
     for name, values in enums:
@@ -142,13 +144,13 @@ cdef extern from "<{header_file}>" namespace "{namespace}":
 
 
 cdef class _{classname}(_Wrapper):
-    cdef {classname} thisptr;
+    cdef {classname} {member_name};
 {enum_names}
     def __cinit__(self):
-        clearStruct(self.thisptr)
+        clearStruct(self.{member_name})
 
     def clear(self):
-        clearStruct(self.thisptr)
+        clearStruct(self.{member_name})
 
     def __str__(self):
         return "({str_format})" % (
@@ -159,9 +161,9 @@ cdef class _{classname}(_Wrapper):
 PROP_TEMPLATE = """\
     property {prop}:
         def __get__(self):
-            return self.thisptr.{prop}
+            return self.{member_name}.{prop}
         def __set__(self, {typename} x):
-            self.thisptr.{prop} = x
+            self.{member_name}.{prop} = x
 """
 
 ENUM_CLASS_TEMPLATE = """\
@@ -175,11 +177,11 @@ cdef extern from "<{header_file}>" namespace "{namespace}::{classname}::{enum_na
 ENUM_PROP_TEMPLATE = """\
     property {prop}:
         def __get__(self):
-            return self.{TYPE}_NAMES[<int> self.thisptr.{prop}]
+            return self.{TYPE}_NAMES[<int> self.{member_name}.{prop}]
         def __set__(self, string x):
             cdef uint8_t i
             i = self.{TYPE}_NAMES.index(x)
-            self.thisptr.{prop} = <{Type}>(i)
+            self.{member_name}.{prop} = <{Type}>(i)
 """
 
 if __name__ == '__main__':
