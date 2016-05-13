@@ -7,7 +7,14 @@ class Context(object):
         for (k, v) in kwds.items():
             setattr(self, k, v)
 
-def read_header_file(context):
+def read_header_file(header_file):
+    context = Context(
+        namespaces=[],
+        structs=[],
+        classname='',
+        enum_classes=[],
+        )
+
     def clean_struct(s):
         typename, *parts = s.split()
 
@@ -45,7 +52,7 @@ def read_header_file(context):
         )
 
     in_struct = False
-    for line in strip_comments_and_empties(open(context.header_file)):
+    for line in strip_comments_and_empties(open(header_file)):
         if in_struct:
             m = regex.enum_class.match(line)
             if m:
@@ -68,6 +75,8 @@ def read_header_file(context):
             context.classname = m.group(1)
             in_struct = True
 
+    return context
+
 
 def make_enums(enum_classes, header_file, namespace, classname):
     enums, declarations = [], []
@@ -82,25 +91,18 @@ def make_enums(enum_classes, header_file, namespace, classname):
     decl = '\n\n'.join(declarations)
     if decl:
         decl += '\n'
-    return enums, decl
+    return Context(enums=enums, declarations=decl)
 
 
 def make(header_file):
-    c = Context(
-        namespaces=[],
-        structs=[],
-        classname='',
-        enum_classes=[],
-        header_file=header_file,
-        )
-
-    read_header_file(c)
+    c = read_header_file(header_file)
     namespaces, structs, classname, enum_classes = (
         c.namespaces, c.structs, c.classname, c.enum_classes)
     namespace = ':'.join(namespaces)
 
-    enums, enum_class = make_enums(
-        enum_classes, header_file, namespace, classname)
+    c2 = make_enums(enum_classes, header_file, namespace, classname)
+    enums, enum_class = c2.enums, c2.declarations
+
     member_name = '_instance' # '_' + classname.lower()
 
     enum_names = []
@@ -151,6 +153,7 @@ def make(header_file):
     if property_list:
         mt += CLASS_TEMPLATE.format(**locals())
     return mt
+
 
 MAIN_TEMPLATE = """\
 # Automatically generated on {timestamp}
