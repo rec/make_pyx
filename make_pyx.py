@@ -3,9 +3,6 @@
 import datetime, os, re, sys
 
 
-def prejoin(prefix, s):
-    return prefix + prefix.join(s) if s else ''
-
 def clean_struct(s):
     typename, *parts = s.split()
 
@@ -101,11 +98,17 @@ def make(header_file):
         values = ', '.join("'%s'" % v for v in values)
         enum_names.append('    %s_NAMES = %s' % (name.upper(), values))
 
-    enum_names = prejoin('\n', enum_names)
+    def prejoin(prefix, s):
+        return prefix + prefix.join(s) if s else ''
+
+    enum_names = '\n'.join(enum_names)
     if enum_names:
-        enum_names += '\n'
-    pyx_structs = prejoin('\n        ',
-                          ((t + ' ' + ', '.join(v)) for t, v in structs))
+        enum_names = '\n%s\n' % enum_names
+    indent = '\n        '
+    pyx_structs = indent.join((t + ' ' + ', '.join(v)) for t, v in structs)
+    if pyx_structs:
+        pyx_structs = indent + pyx_structs
+
     struct_definition = '    struct %s:%s' % (classname, pyx_structs)
     props = []
 
