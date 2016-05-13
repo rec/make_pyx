@@ -170,6 +170,19 @@ PROP_TEMPLATE = """\
             self.{member_name}.{prop} = x
 """
 
+ENUM_CLASS_HEADER_TEMPLATE = """\
+cdef extern from "<{header_file}>" namespace "{namespace}::{classname}":
+"""
+
+ENUM_CLASS_ENUM_TEMPLATE = """\
+    cdef cppclass {enum_name}:
+        pass
+"""
+
+ENUM_CLASS_NAME_TEMPLATE = """\
+cdef extern from "<{header_file}>" namespace "{namespace}::{classname}::{enum_name}":
+"""
+
 ENUM_CLASS_TEMPLATE = """\
 cdef extern from "<{header_file}>" namespace "{namespace}::{classname}":
     cdef cppclass {enum_name}:
@@ -177,6 +190,12 @@ cdef extern from "<{header_file}>" namespace "{namespace}::{classname}":
 
 cdef extern from "<{header_file}>" namespace "{namespace}::{classname}::{enum_name}":
 """
+
+ENUM_CLASS_TEMPLATE = (
+    ENUM_CLASS_HEADER_TEMPLATE +
+    ENUM_CLASS_ENUM_TEMPLATE +
+    '\n' +
+    ENUM_CLASS_NAME_TEMPLATE)
 
 ENUM_PROP_TEMPLATE = """\
     property {prop}:
