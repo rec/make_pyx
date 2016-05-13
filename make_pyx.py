@@ -80,10 +80,10 @@ def make_enums(enum_classes, header_file, namespace, classname):
         defs = ('    cdef %s %s' % (enum_name, p) for p in parts)
         declarations.append(main + '\n'.join(defs))
 
-    decl = prejoin('\n', declarations)
+    decl = '\n\n'.join(declarations)
     if decl:
         decl += '\n'
-    return enums,  decl
+    return enums, decl
 
 
 def make(header_file):
@@ -132,16 +132,20 @@ def make(header_file):
             property_list.append(template.format(**locals()))
     property_list = '\n'.join(property_list)
     timestamp = datetime.datetime.utcnow().isoformat()
-    return MAIN_TEMPLATE.format(**locals())
-
+    mt = MAIN_TEMPLATE.format(**locals())
+    if property_list:
+        mt += CLASS_TEMPLATE.format(**locals())
+    return mt
 
 MAIN_TEMPLATE = """\
 # Automatically generated on {timestamp}
 # by https://github.com/rec/make_pyx/make_pyx.py
-{enum_class}
+{enum_class}"""
+
+CLASS_TEMPLATE = """\
+
 cdef extern from "<{header_file}>" namespace "{namespace}":
 {struct_definition}
-
 
 cdef class _{classname}(_Wrapper):
     cdef {classname} {member_name};
