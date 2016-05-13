@@ -13,6 +13,8 @@ def read_header_file(header_file):
         structs=[],
         classname='',
         enum_classes=[],
+        enums=[],
+        declarations=[],
         )
 
     def clean_struct(s):
@@ -57,23 +59,19 @@ def read_header_file(header_file):
             m = regex.enum_class.match(line)
             if m:
                 context.enum_classes.append(m.group(1, 2))
-                continue
-
-            if struct_is_finished(line):
+            elif struct_is_finished(line):
                 break
-
-            context.structs.append(clean_struct(line))
-            continue
-
-        m = regex.namespace.match(line)
-        if m:
-            context.namespaces.append(m.group(1))
-            continue
-
-        m = regex.cstruct.match(line)
-        if m:
-            context.classname = m.group(1)
-            in_struct = True
+            else:
+                context.structs.append(clean_struct(line))
+        else:
+            m = regex.namespace.match(line)
+            if m:
+                context.namespaces.append(m.group(1))
+            else:
+                m = regex.cstruct.match(line)
+                if m:
+                    context.classname = m.group(1)
+                    in_struct = True
 
     return context
 
