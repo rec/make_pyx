@@ -7,17 +7,6 @@ class Context(object):
         for (k, v) in kwds.items():
             setattr(self, k, v)
 
-def match_first(item, matches):
-    for pat, value in matches:
-        m = re.match(pat, item)
-        if m:
-            return m, value
-
-def execute_first(item, matches):
-    mf = match_first(item, matches)
-    return mf and mf[1](mf[0])
-
-
 def read_header_file(context):
     def clean_struct(s):
         typename, *parts = s.split()
@@ -31,7 +20,7 @@ def read_header_file(context):
             was_equal = p == '='
 
         assert typename and parts and variables
-        return typename, variables
+        return Context(typename=typename, variables=variables)
 
     def struct_is_finished(line):
         return ('{' in line or
@@ -125,7 +114,8 @@ def make(header_file):
     if enum_names:
         enum_names = '\n%s\n' % enum_names
     indent = '\n        '
-    pyx_structs = indent.join((t + ' ' + ', '.join(v)) for t, v in structs)
+    fmt = lambda s: s.typename + ' ' + ', '.join(s.variables)
+    pyx_structs = indent.join(fmt(s) for s in structs)
     if pyx_structs:
         pyx_structs = indent + pyx_structs
 
@@ -134,24 +124,26 @@ def make(header_file):
 
     variables_to_enum_type = {}
 
-    for t, v in structs:
-        if t in enum_types:
-            for i in v:
-                variables_to_enum_type[i] = t
-        props += v
+    for s in structs:
+        if s.typename in enum_types:
+            for i in s.variables:
+                variables_to_enum_type[i] = s.typename
+        props += s.variables
+
     str_format = [n + ("='%s'" if n in variables_to_enum_type else '=%s')
                   for n in props]
     str_format = ', '.join(str_format)
     variable_names = ', '.join('self.' + n for n in props)
     property_list = []
-    for typename, variables in structs:
-        for prop in variables:
+    for s in structs:
+        for prop in s.variables:
             if prop in variables_to_enum_type:
                 Type = variables_to_enum_type[prop]
                 TYPE = Type.upper()
                 template = ENUM_PROP_TEMPLATE
             else:
                 template = PROP_TEMPLATE
+            typename, variables = s.typename, s.variables
             property_list.append(template.format(**locals()))
     property_list = '\n'.join(property_list)
     timestamp = datetime.datetime.utcnow().isoformat()
