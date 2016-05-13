@@ -7,6 +7,16 @@ class Context(object):
         for (k, v) in kwds.items():
             setattr(self, k, v)
 
+def match_first(item, matches):
+    for pat, value in matches:
+        m = re.match(pat, item)
+        if m:
+            return m, value
+
+def execute_first(item, matches):
+    mf = match_first(item, matches)
+    return mf and mf[1](mf[0])
+
 
 def read_header_file(header_file):
     def clean_struct(s):
@@ -39,11 +49,12 @@ def read_header_file(header_file):
             if line:
                  yield line
 
-    in_struct = False
-    namespace = []
-    structs = []
-    classname = ''
-    enum_class = []
+    result = Context(
+        namespaces=[],
+        structs=[],
+        classname='',
+        enum_classes=[],
+        )
 
     regex = Context(
         namespace=re.compile(r'namespace (\w+)'),
@@ -51,30 +62,31 @@ def read_header_file(header_file):
         enum_class=re.compile(r'enum class (\w+) \{([^}]+)}'),
         )
 
+    in_struct = False
     for line in strip_comments_and_empties(open(header_file)):
         if in_struct:
             m = regex.enum_class.match(line)
             if m:
-                enum_class.append(m.group(1, 2))
+                result.enum_classes.append(m.group(1, 2))
                 continue
 
             if struct_is_finished(line):
                 break
 
-            structs.append(clean_struct(line))
+            result.structs.append(clean_struct(line))
             continue
 
         m = regex.namespace.match(line)
         if m:
-            namespace.append(m.group(1))
+            result.namespaces.append(m.group(1))
             continue
 
         m = regex.cstruct.match(line)
         if m:
-            classname = m.group(1)
+            result.classname = m.group(1)
             in_struct = True
 
-    return namespace, structs, classname, enum_class
+    return result
 
 
 def make_enums(enum_classes, header_file, namespace, classname):
@@ -94,7 +106,9 @@ def make_enums(enum_classes, header_file, namespace, classname):
 
 
 def make(header_file):
-    namespaces, structs, classname, enum_classes = read_header_file(header_file)
+    c = read_header_file(header_file)
+    namespaces, structs, classname, enum_classes = (
+        c.namespaces, c.structs, c.classname, c.enum_classes)
     namespace = ':'.join(namespaces)
 
     enums, enum_class = make_enums(
