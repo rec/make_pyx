@@ -2,64 +2,74 @@
 
 import datetime, os, re, sys
 
+class Context(object):
+    def __init__(self, **kwds):
+        for (k, v) in kwds.items():
+            setattr(self, k, v)
 
-def clean_struct(s):
-    typename, *parts = s.split()
 
-    was_equal = False
-    variables = []
-    for p in parts:
-        if p[-1] in ';,':
-            p = p[:-1]
-        was_equal or p == '=' or variables.append(p)
-        was_equal = p == '='
+def read_header_file(header_file):
+    def clean_struct(s):
+        typename, *parts = s.split()
 
-    assert typename and parts and variables
-    return typename, variables
+        was_equal = False
+        variables = []
+        for p in parts:
+            if p[-1] in ';,':
+                p = p[:-1]
+            was_equal or p == '=' or variables.append(p)
+            was_equal = p == '='
 
-NAMESPACE_RE = re.compile(r'namespace (\w+)')
-STRUCT_RE = re.compile(r'struct (\w+)')
-ENUM_CLASS_RE = re.compile(r'enum class (\w+) \{([^}]+)}')
+        assert typename and parts and variables
+        return typename, variables
 
-def read(header_file):
+    def struct_is_finished(line):
+        return ('{' in line or
+                '(' in line or
+                line.startswith('};') or
+                line.startswith('class') or
+                line.startswith('template'))
+
+    def strip_comments_and_empties(f):
+        for line in f:
+            comment = line.find('//')
+            if comment >= 0:
+                line = line[:comment]
+            line = line.strip()
+            if line:
+                 yield line
+
     in_struct = False
     namespace = []
     structs = []
     classname = ''
     enum_class = []
 
-    for line in open(header_file):
-        comment = line.find('//')
-        if comment >= 0:
-            line = line[:comment]
-        line = line.strip()
-        if not line:
-            continue
+    regex = Context(
+        namespace=re.compile(r'namespace (\w+)'),
+        cstruct=re.compile(r'struct (\w+)'),
+        enum_class=re.compile(r'enum class (\w+) \{([^}]+)}'),
+        )
 
+    for line in strip_comments_and_empties(open(header_file)):
         if in_struct:
-            m = ENUM_CLASS_RE.match(line)
+            m = regex.enum_class.match(line)
             if m:
                 enum_class.append(m.group(1, 2))
                 continue
 
-            if (
-                '{' in line or
-                '(' in line or
-                line.startswith('};') or
-                line.startswith('class') or
-                line.startswith('template')
-                ):
+            if struct_is_finished(line):
                 break
 
             structs.append(clean_struct(line))
             continue
 
-        m = NAMESPACE_RE.match(line)
+        m = regex.namespace.match(line)
         if m:
             namespace.append(m.group(1))
             continue
 
-        m = STRUCT_RE.match(line)
+        m = regex.cstruct.match(line)
         if m:
             classname = m.group(1)
             in_struct = True
@@ -84,7 +94,7 @@ def make_enums(enum_classes, header_file, namespace, classname):
 
 
 def make(header_file):
-    namespaces, structs, classname, enum_classes = read(header_file)
+    namespaces, structs, classname, enum_classes = read_header_file(header_file)
     namespace = ':'.join(namespaces)
 
     enums, enum_class = make_enums(
