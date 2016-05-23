@@ -11,19 +11,8 @@ def make(header_file):
     namespace = ':'.join(header.namespaces)
     member_name = '_instance'
 
-    enums, enum_class = make_enums(
+    enums, enum_class, enum_names, enum_types = make_enums(
         header.enum_classes, header_file, namespace, header.classname)
-
-    enum_names = []
-    enum_types = {}
-    for name, values in enums:
-        enum_types[name] = set()
-        values = ', '.join("'%s'" % v for v in values)
-        enum_names.append('    %s_NAMES = %s' % (name.upper(), values))
-
-    enum_names = '\n'.join(enum_names)
-    if enum_names:
-        enum_names = '\n%s\n' % enum_names
 
     indent = '\n        '
     fmt = lambda s: s.typename + ' ' + ', '.join(s.variables)
