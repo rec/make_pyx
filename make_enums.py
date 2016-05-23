@@ -1,8 +1,4 @@
-#!/usr/bin/env python3
-
-from . read_header_file import Context
-
-def make_enums(enum_classes, header_file, namespace, classname):
+def make_enums(enum_classes, header_file, namespace):
     enums, declarations = [], []
     for ec in enum_classes:
         enum_name, parts = (i.strip() for i in ec)
@@ -19,4 +15,4 @@ def make_enums(enum_classes, header_file, namespace, classname):
     decl = '\n\n'.join(declarations)
     if decl:
         decl += '\n'
-    return Context(enums=enums, declarations=decl)
+    return enums, declarations

@@ -6,12 +6,11 @@ from . make_enums import make_enums
 
 
 def make(header_file):
-    c = read_header_file(header_file)
-    namespaces, structs, classname, enum_classes = (
-        c.namespaces, c.structs, c.classname, c.enum_classes)
-    namespace = ':'.join(namespaces)
+    header = read_header_file(header_file)
+    classname = header.classname
+    namespace = ':'.join(header.namespaces)
 
-    c2 = make_enums(enum_classes, header_file, namespace, classname)
+    c2 = make_enums(header.enum_classes, header_file, namespace)
     enums, enum_class = c2.enums, c2.declarations
 
     member_name = '_instance' # '_' + classname.lower()
@@ -28,7 +27,7 @@ def make(header_file):
         enum_names = '\n%s\n' % enum_names
     indent = '\n        '
     fmt = lambda s: s.typename + ' ' + ', '.join(s.variables)
-    pyx_structs = indent.join(fmt(s) for s in structs)
+    pyx_structs = indent.join(fmt(s) for s in header.structs)
     if pyx_structs:
         pyx_structs = indent + pyx_structs
 
@@ -37,7 +36,7 @@ def make(header_file):
 
     variables_to_enum_type = {}
 
-    for s in structs:
+    for s in header.structs:
         if s.typename in enum_types:
             for i in s.variables:
                 variables_to_enum_type[i] = s.typename
@@ -48,7 +47,7 @@ def make(header_file):
     str_format = ', '.join(str_format)
     variable_names = ', '.join('self.' + n for n in props)
     property_list = []
-    for s in structs:
+    for s in header.structs:
         for prop in s.variables:
             if prop in variables_to_enum_type:
                 Type = variables_to_enum_type[prop]
