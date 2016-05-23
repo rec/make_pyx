@@ -11,7 +11,7 @@ def make(header_file):
     namespace = ':'.join(header.namespaces)
     member_name = '_instance'
 
-    enums, enum_class, enum_names, enum_types = make_enums(
+    enum_class, enum_pyx, enum_types = make_enums(
         header.enum_classes, header_file, namespace, header.classname)
 
     indent = '\n        '
@@ -66,7 +66,7 @@ cdef extern from "<{header_file}>" namespace "{namespace}":
 
 cdef class _{classname}(_Wrapper):
     cdef {classname} {member_name};
-{enum_names}
+{enum_pyx}
     def __cinit__(self):
         clearStruct(self.{member_name})
 
