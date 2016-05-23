@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 
 import datetime, os, re, sys
-from . read_header_file import read_header_file, Context
-from . make_enums import make_enums
+from read_header_file import read_header_file, Context
+from make_enums import make_enums
 
 
 def make(header_file):
     header = read_header_file(header_file)
     classname = header.classname
     namespace = ':'.join(header.namespaces)
+    member_name = '_instance'
 
-    c2 = make_enums(header.enum_classes, header_file, namespace)
-    enums, enum_class = c2.enums, c2.declarations
-
-    member_name = '_instance' # '_' + classname.lower()
+    enums, enum_class = make_enums(
+        header.enum_classes, header_file, namespace, header.classname)
 
     enum_names = []
     enum_types = {}
@@ -25,6 +24,7 @@ def make(header_file):
     enum_names = '\n'.join(enum_names)
     if enum_names:
         enum_names = '\n%s\n' % enum_names
+
     indent = '\n        '
     fmt = lambda s: s.typename + ' ' + ', '.join(s.variables)
     pyx_structs = indent.join(fmt(s) for s in header.structs)
@@ -97,33 +97,6 @@ PROP_TEMPLATE = """\
         def __set__(self, {typename} x):
             self.{member_name}.{prop} = x
 """
-
-ENUM_CLASS_HEADER_TEMPLATE = """\
-cdef extern from "<{header_file}>" namespace "{namespace}::{classname}":
-"""
-
-ENUM_CLASS_ENUM_TEMPLATE = """\
-    cdef cppclass {enum_name}:
-        pass
-"""
-
-ENUM_CLASS_NAME_TEMPLATE = """\
-cdef extern from "<{header_file}>" namespace "{namespace}::{classname}::{enum_name}":
-"""
-
-ENUM_CLASS_TEMPLATE = """\
-cdef extern from "<{header_file}>" namespace "{namespace}::{classname}":
-    cdef cppclass {enum_name}:
-        pass
-
-cdef extern from "<{header_file}>" namespace "{namespace}::{classname}::{enum_name}":
-"""
-
-ENUM_CLASS_TEMPLATE = (
-    ENUM_CLASS_HEADER_TEMPLATE +
-    ENUM_CLASS_ENUM_TEMPLATE +
-    '\n' +
-    ENUM_CLASS_NAME_TEMPLATE)
 
 ENUM_PROP_TEMPLATE = """\
     property {prop}:
