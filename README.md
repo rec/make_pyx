@@ -1,2 +1,1 @@
-# make_pyx
-Make a .pyx file from a .h containing only a simple structure definition.
+OBSOLETE: see https://github.com/rec/tada/tree/master/scripts/read_structs
